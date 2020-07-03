@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -28,6 +29,7 @@ public class LoopUploadActivity extends AppCompatActivity {
     private String IntDir = Environment.getRootDirectory().toString();
     private Button startButton;
     private TextView time;
+    private EditText NReports;
     //input parameters
     private String nombre,sexo,edad,peso,talla,cintura,cadera,braquial,carpo,tricipital,bicipital,suprailiaco,subescapular;
     //creates and access DB
@@ -59,6 +61,7 @@ public class LoopUploadActivity extends AppCompatActivity {
         setContentView(R.layout.activity_loop_upload);
         startButton = (Button) findViewById(R.id.startButtonLoop);
         time = (TextView) findViewById(R.id.timeLoop);
+        NReports = (EditText) findViewById(R.id.NReports);
 
         tsf = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss.SSS");
         d1 = null;
@@ -89,7 +92,7 @@ public class LoopUploadActivity extends AppCompatActivity {
             if(is.read(buffer)>0) {
                 jsonString = new String(buffer, "UTF-8");
                 JSONArray jsonArray = new JSONArray(jsonString);
-                len= 5; //number of pdfs
+                len = Integer.parseInt(NReports.getText().toString()); //number of pdfs
                 for(int i = 0;i<len; i++){
                     jsonObject = jsonArray.getJSONObject(i);
                     inputReceiver();
