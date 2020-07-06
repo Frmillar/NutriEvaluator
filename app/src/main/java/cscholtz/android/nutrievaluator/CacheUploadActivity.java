@@ -99,7 +99,7 @@ public class CacheUploadActivity extends AppCompatActivity {
                     ut.addSource(ExtDir + "/PDF/" + FileName + ".pdf");
                 }
                 ut.setDestinationFileName(ExtDir + "/PDF/MergedPDF.pdf");
-                //t2 = tsf.format(new Date());
+                t2 = tsf.format(new Date());
                 ut.mergeDocuments();
                 uploadFile();
             }
@@ -117,7 +117,6 @@ public class CacheUploadActivity extends AppCompatActivity {
         File f1 = new File(ExtDir+"/PDF/MergedPDF.pdf");
         Uri uri_file = Uri.fromFile(f1);
         StorageReference stg = storageReference.child("Cache").child(f1.getName());
-        t2 = tsf.format(new Date());
         stg.putFile(uri_file)
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
