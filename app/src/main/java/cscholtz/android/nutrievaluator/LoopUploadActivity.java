@@ -28,7 +28,7 @@ public class LoopUploadActivity extends AppCompatActivity {
     private String ExtDir = Environment.getExternalStorageDirectory().toString();
     private String IntDir = Environment.getRootDirectory().toString();
     private Button startButton;
-    private TextView time;
+    private TextView time, reports;
     private EditText NReports;
     //input parameters
     private String nombre,sexo,edad,peso,talla,cintura,cadera,braquial,carpo,tricipital,bicipital,suprailiaco,subescapular;
@@ -54,6 +54,7 @@ public class LoopUploadActivity extends AppCompatActivity {
     private SimpleDateFormat tsf;
     private String t1,t2;
     private Date d1,d2;
+    private long diff;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,18 +62,24 @@ public class LoopUploadActivity extends AppCompatActivity {
         setContentView(R.layout.activity_loop_upload);
         startButton = (Button) findViewById(R.id.startButtonLoop);
         time = (TextView) findViewById(R.id.timeLoop);
+        reports = (TextView) findViewById(R.id.NReportsText);
         NReports = (EditText) findViewById(R.id.NReports);
 
-        tsf = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss.SSS");
-        d1 = null;
-        d2 = null;
-        num = 0;
-        storageReference = FirebaseStorage.getInstance().getReference();
+        //tsf = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss.SSS");
+        //d1 = null;
+        //d2 = null;
+        //num = 0;
+        //storageReference = FirebaseStorage.getInstance().getReference();
 
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                t1 = tsf.format(new Date());
+                tsf = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss.SSS");
+                d1 = null;
+                d2 = null;
+                num = 0;
+                diff = 0;
+                storageReference = FirebaseStorage.getInstance().getReference();
                 try {
                     runTasks();
                 } catch (Exception e) {
@@ -115,22 +122,24 @@ public class LoopUploadActivity extends AppCompatActivity {
         File f1 = new File(ExtDir+"/PDF/"+FileName+".pdf");
         Uri uri_file = Uri.fromFile(f1);
         StorageReference stg = storageReference.child("Loop").child(f1.getName());
+        t1 = tsf.format(new Date());
         stg.putFile(uri_file)
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
                         num +=1;
-                        if(num == len){
-                            t2 = tsf.format(new Date());
-                            try {
-                                d1 = tsf.parse(t1);
-                                d2 = tsf.parse(t2);
-                            } catch (ParseException e) {
-                                Log.e("TryuploadFile",e.toString());
-                            }
-                            long diff = d2.getTime()-d1.getTime();
-                            time.setText(String.valueOf(diff)+" miliseconds | " + String.valueOf(len) + " PDFs files uploaded");
+                        t2 = tsf.format(new Date());
+                        try{
+                            d1 = tsf.parse(t1);
+                            d2 = tsf.parse(t2);
+                        } catch (ParseException e){
+                            Log.e("TryuploadFile",e.toString());
                         }
+                        diff += (d2.getTime()-d1.getTime());
+                        if(num == len){
+                            reports.setText(String.valueOf(len) + " PDFs files uploaded");
+                            time.setText("Uploading time: " + String.valueOf(diff) + " miliseconds");
+                            }
                     }
                 });
     }

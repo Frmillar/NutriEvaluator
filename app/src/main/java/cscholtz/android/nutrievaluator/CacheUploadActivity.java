@@ -69,7 +69,7 @@ public class CacheUploadActivity extends AppCompatActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                t1 = tsf.format(new Date());
+                //t1 = tsf.format(new Date());
                 try {
                     runTasks();
                 } catch (Exception e) {
@@ -99,8 +99,8 @@ public class CacheUploadActivity extends AppCompatActivity {
                     ut.addSource(ExtDir + "/PDF/" + FileName + ".pdf");
                 }
                 ut.setDestinationFileName(ExtDir + "/PDF/MergedPDF.pdf");
+                //t2 = tsf.format(new Date());
                 ut.mergeDocuments();
-                t2 = tsf.format(new Date());
                 uploadFile();
             }
         }catch (Exception e){
@@ -117,21 +117,22 @@ public class CacheUploadActivity extends AppCompatActivity {
         File f1 = new File(ExtDir+"/PDF/MergedPDF.pdf");
         Uri uri_file = Uri.fromFile(f1);
         StorageReference stg = storageReference.child("Cache").child(f1.getName());
+        t2 = tsf.format(new Date());
         stg.putFile(uri_file)
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
                         t3 = tsf.format(new Date());
                         try {
-                            d1 = tsf.parse(t1);
+                            //d1 = tsf.parse(t1);
                             d2 = tsf.parse(t2);
                             d3 = tsf.parse(t3);
                         } catch (ParseException e) {
                             Log.e("TryuploadFile",e.toString());
                         }
-                        long diff1 = d2.getTime()-d1.getTime();
+                        //long diff1 = d2.getTime()-d1.getTime();
                         long diff2 = d3.getTime()-d2.getTime();
-                        time_merge.setText("Caching time: "+String.valueOf(diff1)+" miliseconds");
+                        //time_merge.setText("Caching time: "+String.valueOf(diff1)+" miliseconds");
                         time_upload.setText("Uploading time: " +String.valueOf(diff2)+" miliseconds");
                     }
                 });
