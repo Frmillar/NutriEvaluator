@@ -19,7 +19,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
 import java.io.InputStream;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -28,7 +27,7 @@ public class LoopUploadActivity extends AppCompatActivity {
     private String ExtDir = Environment.getExternalStorageDirectory().toString();
     private String IntDir = Environment.getRootDirectory().toString();
     private Button startButton;
-    private TextView time, reports;
+    private TextView reports, timeUpload, timeTotal, timeCreation;
     private EditText NReports;
     //input parameters
     private String nombre,sexo,edad,peso,talla,cintura,cadera,braquial,carpo,tricipital,bicipital,suprailiaco,subescapular;
@@ -51,34 +50,27 @@ public class LoopUploadActivity extends AppCompatActivity {
     private int len; // number of inputs
 
     //for measuring the time
-    private SimpleDateFormat tsf;
-    private String t1,t2;
-    private Date d1,d2;
-    private long diff;
+    private long t0,t1,t2,t3;
+    private long timecreation, timetotal;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_loop_upload);
         startButton = (Button) findViewById(R.id.startButtonLoop);
-        time = (TextView) findViewById(R.id.timeLoop);
-        reports = (TextView) findViewById(R.id.NReportsText);
         NReports = (EditText) findViewById(R.id.NReports);
+        timeUpload = (TextView) findViewById(R.id.timeUpload);
+        timeTotal = (TextView) findViewById(R.id.timeTotal) ;
+        reports = (TextView) findViewById(R.id.NReportsText);
+        timeCreation = (TextView) findViewById(R.id.timeCreation);
 
-        //tsf = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss.SSS");
-        //d1 = null;
-        //d2 = null;
-        //num = 0;
-        //storageReference = FirebaseStorage.getInstance().getReference();
 
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                tsf = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss.SSS");
-                d1 = null;
-                d2 = null;
                 num = 0;
-                diff = 0;
+                timecreation = 0;
+                timetotal = 0;
                 storageReference = FirebaseStorage.getInstance().getReference();
                 try {
                     runTasks();
@@ -99,18 +91,24 @@ public class LoopUploadActivity extends AppCompatActivity {
             if(is.read(buffer)>0) {
                 jsonString = new String(buffer, "UTF-8");
                 JSONArray jsonArray = new JSONArray(jsonString);
-                len = Integer.parseInt(NReports.getText().toString()); //number of pdfs
+                len = Integer.parseInt(NReports.getText().toString());
+                t0 = System.nanoTime();
                 for(int i = 0;i<len; i++){
+                    t1= System.nanoTime();
                     jsonObject = jsonArray.getJSONObject(i);
                     inputReceiver();
                     evaluateData();
                     createPDF();
+                    t2= System.nanoTime();
+                    timecreation+=t2-t1;
                     uploadFile();
                 }
             }
+
         }catch (Exception e){
             Log.e("TryInrunTasks",e.toString());
         }
+
         finally {
             if(is!=null) {
                 is.close();
@@ -122,36 +120,32 @@ public class LoopUploadActivity extends AppCompatActivity {
         File f1 = new File(ExtDir+"/PDF/"+FileName+".pdf");
         Uri uri_file = Uri.fromFile(f1);
         StorageReference stg = storageReference.child("Loop").child(f1.getName());
-        t1 = tsf.format(new Date());
         stg.putFile(uri_file)
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
                         num +=1;
-                        t2 = tsf.format(new Date());
-                        try{
-                            d1 = tsf.parse(t1);
-                            d2 = tsf.parse(t2);
-                        } catch (ParseException e){
-                            Log.e("TryuploadFile",e.toString());
-                        }
-                        diff += (d2.getTime()-d1.getTime());
                         if(num == len){
+                            t3 = System.nanoTime();
+                            timetotal = (int)((t3-t0)/1e6);
+                            timecreation = (int)(timecreation/1e6);
+
                             reports.setText(String.valueOf(len) + " PDFs files uploaded");
-                            time.setText("Uploading time: " + String.valueOf(diff) + " miliseconds");
-                            }
+                            timeCreation.setText("Creation time: " + timecreation + "ms");
+                            timeUpload.setText("Uploading time: " + (timetotal-timecreation) + "ms");
+                            timeTotal.setText("Total time: " + timetotal + "ms");
+                        }
                     }
                 });
     }
 
-    public void createPDF(){
-        SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy");
+    public void createPDF() { SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy");
         String currentDate = sdf.format(new Date());
         templatePDF = new TemplatePDF(getApplicationContext());
-        FileName = nombre+"_"+currentDate;
+        FileName = nombre + "_" + currentDate;
         templatePDF.openDocument(FileName);
-        templatePDF.addMetaData("Evaluacion Nutricional"+nombre,"evaluacion","cs");
-        templatePDF.addTitles("Evaluacion Nutricional","Paciente: "+nombre,currentDate);
+        templatePDF.addMetaData("Evaluacion Nutricional" + nombre, "evaluacion", "cs");
+        templatePDF.addTitles("Evaluacion Nutricional", "Paciente: " + nombre, currentDate);
         templatePDF.addParagraph(IMC);
         templatePDF.addParagraph(IPT);
         templatePDF.addParagraph(PESO_IDEAL);

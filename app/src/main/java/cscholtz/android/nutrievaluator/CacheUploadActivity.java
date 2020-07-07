@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -27,7 +28,8 @@ public class CacheUploadActivity extends AppCompatActivity {
 
     private String ExtDir = Environment.getExternalStorageDirectory().toString();
     private Button startButton;
-    private TextView time_merge, time_upload;
+    private TextView reports, timeUpload, timeTotal, timeCreation;
+    private EditText NReports;
     //input parameters
     private String nombre,sexo,edad,peso,talla,cintura,cadera,braquial,carpo,tricipital,bicipital,suprailiaco,subescapular;
     //creates and access DB
@@ -48,9 +50,8 @@ public class CacheUploadActivity extends AppCompatActivity {
     private int len; // number of inputs
 
     //for measuring the time
-    private SimpleDateFormat tsf;
-    private String t1,t2,t3;
-    private Date d1,d2,d3;
+    private long t0,t1,t2,t3;
+    private long timecreation, timemerge, timetotal, timeupload;
 
 
     @Override
@@ -58,18 +59,20 @@ public class CacheUploadActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_cache_upload);
         startButton = (Button) findViewById(R.id.startButtonCache);
-        time_merge = (TextView) findViewById(R.id.timeCacheMerge);
-        time_upload = (TextView) findViewById(R.id.timeCacheUpload);
+        NReports = (EditText) findViewById(R.id.NReports);
+        reports = (TextView) findViewById(R.id.NReportsText);
+        timeUpload = (TextView) findViewById(R.id.timeUpload);
+        timeTotal = (TextView) findViewById(R.id.timeTotal);
+        timeCreation = (TextView) findViewById(R.id.timeCreation);
 
-        tsf = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss.SSS");
-        d1 = null;
-        d2 = null;
-        storageReference = FirebaseStorage.getInstance().getReference();
 
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //t1 = tsf.format(new Date());
+                timecreation = 0;
+                timemerge = 0;
+                timetotal = 0;
+                storageReference = FirebaseStorage.getInstance().getReference();
                 try {
                     runTasks();
                 } catch (Exception e) {
@@ -90,7 +93,8 @@ public class CacheUploadActivity extends AppCompatActivity {
                 jsonString = new String(buffer, "UTF-8");
                 JSONArray jsonArray = new JSONArray(jsonString);
                 PDFMergerUtility ut = new PDFMergerUtility();
-                len = 20;
+                len = Integer.parseInt(NReports.getText().toString());
+                t0 = System.nanoTime();
                 for (int i = 0; i < len; i++) {
                     jsonObject = jsonArray.getJSONObject(i);
                     inputReceiver();
@@ -98,9 +102,10 @@ public class CacheUploadActivity extends AppCompatActivity {
                     createPDF();
                     ut.addSource(ExtDir + "/PDF/" + FileName + ".pdf");
                 }
+                t1 = System.nanoTime();
                 ut.setDestinationFileName(ExtDir + "/PDF/MergedPDF.pdf");
-                t2 = tsf.format(new Date());
                 ut.mergeDocuments();
+                t2 = System.nanoTime();
                 uploadFile();
             }
         }catch (Exception e){
@@ -121,18 +126,17 @@ public class CacheUploadActivity extends AppCompatActivity {
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                        t3 = tsf.format(new Date());
-                        try {
-                            //d1 = tsf.parse(t1);
-                            d2 = tsf.parse(t2);
-                            d3 = tsf.parse(t3);
-                        } catch (ParseException e) {
-                            Log.e("TryuploadFile",e.toString());
-                        }
-                        //long diff1 = d2.getTime()-d1.getTime();
-                        long diff2 = d3.getTime()-d2.getTime();
-                        //time_merge.setText("Caching time: "+String.valueOf(diff1)+" miliseconds");
-                        time_upload.setText("Uploading time: " +String.valueOf(diff2)+" miliseconds");
+                        t3 = System.nanoTime();
+                        timetotal = (int)((t3-t0)/1e6);
+                        timemerge = (int)((t2-t1)/1e6);
+                        timecreation = (int)((t1-t0)/1e6);
+                        timeupload = (int)((t3-t2)/1e6);
+
+                        reports.setText(String.valueOf(len) + " PDFs files uploaded");
+                        timeCreation.setText("Creation: " + timecreation + "ms | Merging: " + timemerge+ "ms");
+                        timeUpload.setText("Uploading time: " + (timeupload) + "ms");
+                        timeTotal.setText("Total time: " + timetotal + "ms");
+
                     }
                 });
 
