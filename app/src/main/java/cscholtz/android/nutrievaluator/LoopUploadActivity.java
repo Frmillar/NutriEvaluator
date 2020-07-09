@@ -51,7 +51,7 @@ public class LoopUploadActivity extends AppCompatActivity {
 
     //for measuring the time
     private long t0,t1,t2,t3;
-    private long timecreation, timetotal;
+    private long timecreation, timetotal, timeupload;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +84,8 @@ public class LoopUploadActivity extends AppCompatActivity {
     public void runTasks() throws Exception {
         String jsonString = null;
         InputStream is = null;
+        len = Integer.parseInt(NReports.getText().toString());
+        t0 = System.nanoTime();
         try {
             is = getAssets().open("inputs_example.json");
             int size = is.available();
@@ -91,8 +93,6 @@ public class LoopUploadActivity extends AppCompatActivity {
             if(is.read(buffer)>0) {
                 jsonString = new String(buffer, "UTF-8");
                 JSONArray jsonArray = new JSONArray(jsonString);
-                len = Integer.parseInt(NReports.getText().toString());
-                t0 = System.nanoTime();
                 for(int i = 0;i<len; i++){
                     t1= System.nanoTime();
                     jsonObject = jsonArray.getJSONObject(i);
@@ -100,6 +100,7 @@ public class LoopUploadActivity extends AppCompatActivity {
                     evaluateData();
                     createPDF();
                     t2= System.nanoTime();
+                    if(i==0)timeupload=t2;
                     timecreation+=t2-t1;
                     uploadFile();
                 }
@@ -129,10 +130,11 @@ public class LoopUploadActivity extends AppCompatActivity {
                             t3 = System.nanoTime();
                             timetotal = (int)((t3-t0)/1e6);
                             timecreation = (int)(timecreation/1e6);
+                            timeupload = (int)((t3-timeupload)/1e6);
 
                             reports.setText(String.valueOf(len) + " PDFs files uploaded");
                             timeCreation.setText("Creation time: " + timecreation + "ms");
-                            timeUpload.setText("Uploading time: " + (timetotal-timecreation) + "ms");
+                            timeUpload.setText("Uploading time: " + timeupload + "ms ");
                             timeTotal.setText("Total time: " + timetotal + "ms");
                         }
                     }

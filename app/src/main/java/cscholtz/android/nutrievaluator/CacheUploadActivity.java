@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Vector;
 
 public class CacheUploadActivity extends AppCompatActivity {
 
@@ -85,6 +86,8 @@ public class CacheUploadActivity extends AppCompatActivity {
     public void runTasks() throws Exception {
         String jsonString;
         InputStream is = null;
+        len = Integer.parseInt(NReports.getText().toString());
+        t0 = System.nanoTime();
         try {
             is = getAssets().open("inputs_example.json");
             int size = is.available();
@@ -93,8 +96,6 @@ public class CacheUploadActivity extends AppCompatActivity {
                 jsonString = new String(buffer, "UTF-8");
                 JSONArray jsonArray = new JSONArray(jsonString);
                 PDFMergerUtility ut = new PDFMergerUtility();
-                len = Integer.parseInt(NReports.getText().toString());
-                t0 = System.nanoTime();
                 for (int i = 0; i < len; i++) {
                     jsonObject = jsonArray.getJSONObject(i);
                     inputReceiver();
@@ -121,6 +122,7 @@ public class CacheUploadActivity extends AppCompatActivity {
     public void uploadFile(){
         File f1 = new File(ExtDir+"/PDF/MergedPDF.pdf");
         Uri uri_file = Uri.fromFile(f1);
+
         StorageReference stg = storageReference.child("Cache").child(f1.getName());
         stg.putFile(uri_file)
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
