@@ -18,9 +18,13 @@ import com.google.firebase.storage.UploadTask;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Random;
+import java.util.Vector;
 
 public class LoopUploadActivity extends AppCompatActivity {
 
@@ -50,8 +54,8 @@ public class LoopUploadActivity extends AppCompatActivity {
     private int len; // number of inputs
 
     //for measuring the time
-    private long t0,t1,t2,t3;
-    private long timecreation, timetotal, timeupload;
+    private long t0, timecreation, timetotal, timeupload;
+    private Vector<Integer> timecreationstarts, timecreationends, timeuploadends;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,7 +89,10 @@ public class LoopUploadActivity extends AppCompatActivity {
         String jsonString = null;
         InputStream is = null;
         len = Integer.parseInt(NReports.getText().toString());
-        t0 = System.nanoTime();
+        timecreationstarts = new Vector<Integer>(len);
+        timecreationends = new Vector<Integer>(len);
+        timeuploadends = new Vector<Integer>(len);
+        t0 = (int)(System.nanoTime()/1e6);
         try {
             is = getAssets().open("inputs_example.json");
             int size = is.available();
@@ -94,14 +101,12 @@ public class LoopUploadActivity extends AppCompatActivity {
                 jsonString = new String(buffer, "UTF-8");
                 JSONArray jsonArray = new JSONArray(jsonString);
                 for(int i = 0;i<len; i++){
-                    t1= System.nanoTime();
+                    timecreationstarts.add(i, (int)(System.nanoTime()/1e6));
                     jsonObject = jsonArray.getJSONObject(i);
                     inputReceiver();
                     evaluateData();
                     createPDF();
-                    t2= System.nanoTime();
-                    if(i==0)timeupload=t2;
-                    timecreation+=t2-t1;
+                    timecreationends.add(i, (int)(System.nanoTime()/1e6));
                     uploadFile();
                 }
             }
@@ -125,13 +130,16 @@ public class LoopUploadActivity extends AppCompatActivity {
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                        timeuploadends.add(num, (int)(System.nanoTime()/1e6));
                         num +=1;
                         if(num == len){
-                            t3 = System.nanoTime();
-                            timetotal = (int)((t3-t0)/1e6);
-                            timecreation = (int)(timecreation/1e6);
-                            timeupload = (int)((t3-timeupload)/1e6);
-
+                            timetotal = (timeuploadends.elementAt(num-1)-t0);
+                            for(int i=0; i<num; i++){
+                                timecreation+=(timecreationends.elementAt(i)-timecreationstarts.elementAt(i));
+                            }
+                            timecreation+=timecreationstarts.elementAt(0)-t0;
+                            timeupload = timeuploadends.elementAt(num-1)-timecreationends.elementAt(0);
+                            uploadTimes();
                             reports.setText(String.valueOf(len) + " PDFs files uploaded");
                             timeCreation.setText("Creation time: " + timecreation + "ms");
                             timeUpload.setText("Uploading time: " + timeupload + "ms ");
@@ -196,6 +204,54 @@ public class LoopUploadActivity extends AppCompatActivity {
         bicipital = jsonObject.getString("bicipital");
         suprailiaco = jsonObject.getString("suprailiaco");
         subescapular = jsonObject.getString("subescapular");
+    }
+
+    private void uploadTimes(){
+        SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy");
+        String currentDate = sdf.format(new Date());
+        templatePDF = new TemplatePDF(getApplicationContext());
+        Random rand = new Random();
+        String sFileName ="[" + num + " Loop] " + currentDate + " - " + rand.nextFloat() +".txt";
+        try {
+            File root = new File(ExtDir, "TimeStamps");
+            if (!root.exists()) {
+                root.mkdirs();
+            }
+            File gpxfile = new File(root, sFileName);
+            FileWriter writer = new FileWriter(gpxfile);
+            writer.append("Creation Time Takes: \n");
+            writer.append(timecreation + "\n\n");
+            writer.append("Uploading Time Takes:\n");
+            writer.append(timeupload + "\n\n");
+            writer.append("Total Time Takes: \n");
+            writer.append(timetotal + "\n\n");
+            writer.append("Creation start time each file starts at:\n");
+            for(int i=0; i<num; i++){
+                writer.append(String.valueOf(timecreationstarts.elementAt(i)-t0) + "\n");
+            }
+            writer.append("\nCreation end time each file starts at:\n");
+            for(int i=0; i<num; i++){
+                writer.append(String.valueOf(timecreationends.elementAt(i)-t0) + "\n");
+            }
+            writer.append("\nUploading end time each file starts at:\n");
+            for(int i=0; i<num; i++){
+                writer.append(String.valueOf(timeuploadends.elementAt(i)-t0) + "\n");
+            }
+            writer.flush();
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        File f1 = new File(ExtDir + "/TimeStamps/" + sFileName);
+        Uri uri_file = Uri.fromFile(f1);
+        StorageReference stg = storageReference.child("TimeStamps").child(f1.getName());
+        stg.putFile(uri_file)
+                .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                    @Override
+                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                        System.out.println("Uploaded");
+                    }
+                });
     }
 
 }
