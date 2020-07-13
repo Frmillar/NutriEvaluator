@@ -55,7 +55,7 @@ public class LoopUploadActivity extends AppCompatActivity {
 
     //for measuring the time
     private long t0, timecreation, timetotal, timeupload;
-    private Vector<Integer> timecreationstarts, timecreationends, timeuploadends;
+    private Vector<Long> timecreationstarts, timecreationends, timeuploadends;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,10 +89,10 @@ public class LoopUploadActivity extends AppCompatActivity {
         String jsonString = null;
         InputStream is = null;
         len = Integer.parseInt(NReports.getText().toString());
-        timecreationstarts = new Vector<Integer>(len);
-        timecreationends = new Vector<Integer>(len);
-        timeuploadends = new Vector<Integer>(len);
-        t0 = (int)(System.nanoTime()/1e6);
+        timecreationstarts = new Vector<Long>(len);
+        timecreationends = new Vector<Long>(len);
+        timeuploadends = new Vector<Long>(len);
+        t0 = (System.nanoTime());
         try {
             is = getAssets().open("inputs_example.json");
             int size = is.available();
@@ -101,12 +101,12 @@ public class LoopUploadActivity extends AppCompatActivity {
                 jsonString = new String(buffer, "UTF-8");
                 JSONArray jsonArray = new JSONArray(jsonString);
                 for(int i = 0;i<len; i++){
-                    timecreationstarts.add(i, (int)(System.nanoTime()/1e6));
+                    timecreationstarts.add(i, System.nanoTime());
                     jsonObject = jsonArray.getJSONObject(i);
                     inputReceiver();
                     evaluateData();
                     createPDF();
-                    timecreationends.add(i, (int)(System.nanoTime()/1e6));
+                    timecreationends.add(i, System.nanoTime());
                     uploadFile();
                 }
             }
@@ -130,15 +130,16 @@ public class LoopUploadActivity extends AppCompatActivity {
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                        timeuploadends.add(num, (int)(System.nanoTime()/1e6));
+                        timeuploadends.add(num, System.nanoTime());
                         num +=1;
                         if(num == len){
-                            timetotal = (timeuploadends.elementAt(num-1)-t0);
+                            timetotal = Math.round((timeuploadends.elementAt(num-1)-t0)/1e6);
                             for(int i=0; i<num; i++){
                                 timecreation+=(timecreationends.elementAt(i)-timecreationstarts.elementAt(i));
                             }
                             timecreation+=timecreationstarts.elementAt(0)-t0;
-                            timeupload = timeuploadends.elementAt(num-1)-timecreationends.elementAt(0);
+                            timecreation = Math.round(timecreation/1e6);
+                            timeupload = Math.round((timeuploadends.elementAt(num-1)-timecreationends.elementAt(0))/1e6);
                             uploadTimes();
                             reports.setText(String.valueOf(len) + " PDFs files uploaded");
                             timeCreation.setText("Creation time: " + timecreation + "ms");
@@ -207,11 +208,10 @@ public class LoopUploadActivity extends AppCompatActivity {
     }
 
     private void uploadTimes(){
-        SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy");
+        SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
         String currentDate = sdf.format(new Date());
         templatePDF = new TemplatePDF(getApplicationContext());
-        Random rand = new Random();
-        String sFileName ="[" + num + " Loop] " + currentDate + " - " + rand.nextFloat() +".txt";
+        String sFileName ="[" + num + " Loop] " + currentDate +".txt";
         try {
             File root = new File(ExtDir, "TimeStamps");
             if (!root.exists()) {
@@ -219,23 +219,18 @@ public class LoopUploadActivity extends AppCompatActivity {
             }
             File gpxfile = new File(root, sFileName);
             FileWriter writer = new FileWriter(gpxfile);
-            writer.append("Creation Time Takes: \n");
-            writer.append(timecreation + "\n\n");
-            writer.append("Uploading Time Takes:\n");
-            writer.append(timeupload + "\n\n");
-            writer.append("Total Time Takes: \n");
-            writer.append(timetotal + "\n\n");
-            writer.append("Creation start time each file starts at:\n");
+            writer.append(String.valueOf(t0));
+            writer.append("\n\n");
             for(int i=0; i<num; i++){
-                writer.append(String.valueOf(timecreationstarts.elementAt(i)-t0) + "\n");
+                writer.append(String.valueOf(timecreationstarts.elementAt(i)) + "\n");
             }
-            writer.append("\nCreation end time each file starts at:\n");
+            writer.append("\n");
             for(int i=0; i<num; i++){
-                writer.append(String.valueOf(timecreationends.elementAt(i)-t0) + "\n");
+                writer.append(String.valueOf(timecreationends.elementAt(i)) + "\n");
             }
-            writer.append("\nUploading end time each file starts at:\n");
+            writer.append("\n");
             for(int i=0; i<num; i++){
-                writer.append(String.valueOf(timeuploadends.elementAt(i)-t0) + "\n");
+                writer.append(String.valueOf(timeuploadends.elementAt(i)) + "\n");
             }
             writer.flush();
             writer.close();
