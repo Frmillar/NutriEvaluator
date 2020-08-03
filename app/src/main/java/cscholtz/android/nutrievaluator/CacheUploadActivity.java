@@ -19,6 +19,8 @@ import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -134,6 +136,8 @@ public class CacheUploadActivity extends AppCompatActivity {
                         timecreation = (int)((t1-t0)/1e6);
                         timeupload = (int)((t3-t2)/1e6);
 
+                        uploadTimes();
+
                         reports.setText(String.valueOf(len) + " PDFs files uploaded");
                         timeCreation.setText("Creation: " + timecreation + "ms | Merging: " + timemerge+ "ms");
                         timeUpload.setText("Uploading time: " + (timeupload) + "ms");
@@ -200,6 +204,42 @@ public class CacheUploadActivity extends AppCompatActivity {
         bicipital = jsonObject.getString("bicipital");
         suprailiaco = jsonObject.getString("suprailiaco");
         subescapular = jsonObject.getString("subescapular");
+    }
+
+    private void uploadTimes(){
+        SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
+        String currentDate = sdf.format(new Date());
+        templatePDF = new TemplatePDF(getApplicationContext());
+        String sFileName ="[" + len + " Cache] " + currentDate +".txt";
+        try {
+            File root = new File(ExtDir, "TimeStamps");
+            if (!root.exists()) {
+                root.mkdirs();
+            }
+            File gpxfile = new File(root, sFileName);
+            FileWriter writer = new FileWriter(gpxfile);
+            writer.append(String.valueOf(t0));
+            writer.append("\n");
+            writer.append(String.valueOf(t1));
+            writer.append("\n");
+            writer.append(String.valueOf(t2));
+            writer.append("\n");
+            writer.append(String.valueOf(t3));
+            writer.flush();
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        File f1 = new File(ExtDir + "/TimeStamps/" + sFileName);
+        Uri uri_file = Uri.fromFile(f1);
+        StorageReference stg = storageReference.child("TimeStamps").child(f1.getName());
+        stg.putFile(uri_file)
+                .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                    @Override
+                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                        System.out.println("Uploaded");
+                    }
+                });
     }
 
 }
