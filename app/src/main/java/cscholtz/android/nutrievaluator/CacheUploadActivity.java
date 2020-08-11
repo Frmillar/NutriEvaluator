@@ -255,7 +255,7 @@ public class CacheUploadActivity extends AppCompatActivity {
                 writer.write(String.valueOf(timeuploadends.elementAt(i)));
                 writer.write(System.lineSeparator());
             }
-            //writer.flush();
+            writer.flush();
             writer.close();
         } catch (IOException e) {
             e.printStackTrace();
