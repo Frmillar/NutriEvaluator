@@ -1,10 +1,13 @@
 package cscholtz.android.nutrievaluator;
 
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
+
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+
 import android.os.Bundle;
-import android.os.health.SystemHealthManager;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -19,11 +22,12 @@ import com.google.firebase.storage.UploadTask;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Vector;
@@ -33,7 +37,7 @@ public class CacheUploadActivity extends AppCompatActivity {
     private String ExtDir = Environment.getExternalStorageDirectory().toString();
     private Button startButton;
     private TextView reports, timeUpload, timeTotal, timeCreation;
-    private EditText NReports;
+    private EditText NReports, CacheSize;
     //input parameters
     private String nombre,sexo,edad,peso,talla,cintura,cadera,braquial,carpo,tricipital,bicipital,suprailiaco,subescapular;
     //creates and access DB
@@ -51,20 +55,12 @@ public class CacheUploadActivity extends AppCompatActivity {
 
     //JasonObjhect to read .json file with inputs
     private JSONObject jsonObject;
-    private int len; // number of inputs
+    private int len, cache_size; // number of inputs and cache size
 
     //for measuring the time
     private long t0;
     private Vector<Long> timecreationstarts, timemergestarts, timeuploadstarts, timeuploadends;
-    private int nloops, inloopn; //nloops = number of cycles of uploading ;; inloopn = determine the quantity of pdfs uploaded at that moment
-
-    //for json data
-    private String jsonString;
-    private InputStream is;
-    private int size;
-    private byte[] buffer;
-    private JSONArray jsonArray;
-    private PDFMergerUtility ut;
+    private int nloops, num, inloopn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,21 +68,17 @@ public class CacheUploadActivity extends AppCompatActivity {
         setContentView(R.layout.activity_cache_upload);
         startButton = (Button) findViewById(R.id.startButtonCache);
         NReports = (EditText) findViewById(R.id.NReports);
+        CacheSize = (EditText) findViewById(R.id.Cache_size);
         reports = (TextView) findViewById(R.id.NReportsText);
         timeUpload = (TextView) findViewById(R.id.timeUpload);
         timeTotal = (TextView) findViewById(R.id.timeTotal);
         timeCreation = (TextView) findViewById(R.id.timeCreation);
 
-
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                nloops = 50;
+                num = 0;
                 inloopn = 0;
-                timecreationstarts = new Vector<Long>(nloops);
-                timemergestarts = new Vector<Long>(nloops);
-                timeuploadstarts = new Vector<Long>(nloops);
-                timeuploadends = new Vector<Long>(nloops);
                 storageReference = FirebaseStorage.getInstance().getReference();
                 try {
                     runTasks();
@@ -98,20 +90,47 @@ public class CacheUploadActivity extends AppCompatActivity {
     }
 
     public void runTasks() throws Exception {
-        String jsonString;
+        String jsonString = null;
         InputStream is = null;
         len = Integer.parseInt(NReports.getText().toString());
+        cache_size = Integer.parseInt(CacheSize.getText().toString());
+        nloops = len/cache_size;
+        timecreationstarts = new Vector<Long>(nloops);
+        timemergestarts = new Vector<Long>(nloops);
+        timeuploadstarts = new Vector<Long>(nloops);
+        timeuploadends = new Vector<Long>(nloops);
+        nloops = len/cache_size;
         t0 = System.nanoTime();
         try {
             is = getAssets().open("inputs_example.json");
-            size = is.available();
-            buffer = new byte[size];
+            int size = is.available();
+            byte[] buffer = new byte[size];
             if(is.read(buffer)>0) {
                 jsonString = new String(buffer, "UTF-8");
-                jsonArray = new JSONArray(jsonString);
-                ut = new PDFMergerUtility();
-                doPDFs();
+                JSONArray jsonArray = new JSONArray(jsonString);
+                PDFMergerUtility ut;
+                for(int i = 0;i<len; i+=cache_size){
+                    ut = new PDFMergerUtility();
+                    long taux1=System.nanoTime();
+                    timecreationstarts.add(inloopn, taux1);
+                    for (int j = 0; j<cache_size; j++) {
+                        jsonObject = jsonArray.getJSONObject((i+j));
+                        inputReceiver();
+                        evaluateData();
+                        createPDF();
+                        ut.addSource(ExtDir + "/PDF/" + FileName + ".pdf");
+                    }
+                    long taux2=System.nanoTime();
+                    timemergestarts.add(inloopn, taux2);
+                    ut.setDestinationFileName(ExtDir + "/PDF/MergedPDF" + String.valueOf(inloopn) + ".pdf");
+                    ut.mergeDocuments();
+                    long taux3=System.nanoTime();
+                    timeuploadstarts.add(inloopn, taux3);
+                    uploadFile();
+                    inloopn++;
+                }
             }
+
         }catch (Exception e){
             Log.e("TryInrunTasks",e.toString());
         }
@@ -120,23 +139,6 @@ public class CacheUploadActivity extends AppCompatActivity {
                 is.close();
             }
         }
-    }
-
-    private void doPDFs() throws Exception {
-        ut = new PDFMergerUtility();
-        timecreationstarts.add(inloopn, System.nanoTime());
-        for (int i = 0; i < len; i++) {
-            jsonObject = jsonArray.getJSONObject(inloopn*len+i);
-            inputReceiver();
-            evaluateData();
-            createPDF();
-            ut.addSource(ExtDir + "/PDF/" + FileName + ".pdf");
-        }
-        timemergestarts.add(inloopn, System.nanoTime());
-        ut.setDestinationFileName(ExtDir + "/PDF/MergedPDF" + String.valueOf(inloopn) + ".pdf");
-        ut.mergeDocuments();
-        timeuploadstarts.add(inloopn, System.nanoTime());
-        uploadFile();
     }
 
     public void uploadFile(){
@@ -148,20 +150,10 @@ public class CacheUploadActivity extends AppCompatActivity {
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                        timeuploadends.add(inloopn, System.nanoTime());
-                        inloopn++;
-                        if(inloopn<nloops) {
-                            try {
-                                doPDFs();
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                        else{
-                            uploadTimes();
-                        }
-
-
+                        long taux=System.nanoTime();
+                        timeuploadends.add(num, taux);
+                        num++;
+                        if(num==nloops)uploadTimes();
                     }
                 });
 
@@ -225,11 +217,12 @@ public class CacheUploadActivity extends AppCompatActivity {
         subescapular = jsonObject.getString("subescapular");
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     private void uploadTimes(){
         SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
         String currentDate = sdf.format(new Date());
         templatePDF = new TemplatePDF(getApplicationContext());
-        String sFileName ="[" + len + " Cache] " + currentDate +".txt";
+        String sFileName ="[" + len + " Cache size " + cache_size + "] " + currentDate +".txt";
         try {
             File root = new File(ExtDir, "TimeStamps");
             if (!root.exists()) {
@@ -237,24 +230,32 @@ public class CacheUploadActivity extends AppCompatActivity {
             }
             File gpxfile = new File(root, sFileName);
             FileWriter writer = new FileWriter(gpxfile);
-            writer.append(String.valueOf(t0));
-            writer.append("\n\n");
-            for(int i=0; i<nloops; i++){
-                writer.append(String.valueOf(timecreationstarts.elementAt(i)) + "\n");
+            writer.write(String.valueOf(t0));
+            writer.write(System.lineSeparator());
+            writer.write("\r\n");
+            //writer.write(System.lineSeparator());
+            for(int i=0; i<num; i++){
+                writer.write(String.valueOf(timecreationstarts.elementAt(i)));
+                writer.write(System.lineSeparator());
+                //System.out.println("CRE: " + timecreationstarts.elementAt(i));
             }
             writer.append("\n");
-            for(int i=0; i<nloops; i++){
-                writer.append(String.valueOf(timemergestarts.elementAt(i)) + "\n");
+            for(int i=0; i<num; i++){
+                writer.write(String.valueOf(timemergestarts.elementAt(i)));
+                writer.write(System.lineSeparator());
+                //System.out.println("MER: " + timecreationstarts.elementAt(i));
             }
             writer.append("\n");
-            for(int i=0; i<nloops; i++){
-                writer.append(String.valueOf(timeuploadstarts.elementAt(i)) + "\n");
+            for(int i=0; i<num; i++){
+                writer.write(String.valueOf(timeuploadstarts.elementAt(i)));
+                writer.write(System.lineSeparator());
             }
             writer.append("\n");
-            for(int i=0; i<nloops; i++){
-                writer.append(String.valueOf(timeuploadends.elementAt(i)) + "\n");
+            for(int i=0; i<num; i++){
+                writer.write(String.valueOf(timeuploadends.elementAt(i)));
+                writer.write(System.lineSeparator());
             }
-            writer.flush();
+            //writer.flush();
             writer.close();
         } catch (IOException e) {
             e.printStackTrace();
@@ -267,11 +268,8 @@ public class CacheUploadActivity extends AppCompatActivity {
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
                         System.out.println("Uploaded");
-                        reports.setText(String.valueOf(len) + "x" + String.valueOf(nloops) + " PDFs files uploaded");
-                        int timetotal = (int)((timeuploadends.elementAt(nloops-1) - t0)/1e6);
-                        /*timeCreation.setText("Creation time: " + timecreation + "ms");
-                        timeUpload.setText("Uploading time: " + timeupload + "ms ");*/
-                        timeTotal.setText("Total time: " + timetotal + "ms");
+                        reports.setText(String.valueOf(len) + " Reports in " +  String.valueOf((int)(len/cache_size)) + " PDFs files uploaded");
+                        timeTotal.setText("Total time: " + (int)((timeuploadends.elementAt(num-1)-t0)/1e6) + "ms");
                     }
                 });
     }
