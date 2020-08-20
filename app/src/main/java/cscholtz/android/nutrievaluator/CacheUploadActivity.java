@@ -21,10 +21,12 @@ import com.google.firebase.storage.UploadTask;
 
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,6 +64,9 @@ public class CacheUploadActivity extends AppCompatActivity {
     private Vector<Long> timecreationstarts, timemergestarts, timeuploadstarts, timeuploadends;
     private int nloops, num, inloopn;
 
+    private PDFMergerUtility ut;
+    private JSONArray jsonArray;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -77,7 +82,7 @@ public class CacheUploadActivity extends AppCompatActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                num = 0;
+                //num = 0;
                 inloopn = 0;
                 storageReference = FirebaseStorage.getInstance().getReference();
                 try {
@@ -107,30 +112,9 @@ public class CacheUploadActivity extends AppCompatActivity {
             byte[] buffer = new byte[size];
             if(is.read(buffer)>0) {
                 jsonString = new String(buffer, "UTF-8");
-                JSONArray jsonArray = new JSONArray(jsonString);
-                PDFMergerUtility ut;
-                for(int i = 0;i<len; i+=cache_size){
-                    ut = new PDFMergerUtility();
-                    long taux1=System.nanoTime();
-                    timecreationstarts.add(inloopn, taux1);
-                    for (int j = 0; j<cache_size; j++) {
-                        jsonObject = jsonArray.getJSONObject((i+j));
-                        inputReceiver();
-                        evaluateData();
-                        createPDF();
-                        ut.addSource(ExtDir + "/PDF/" + FileName + ".pdf");
-                    }
-                    long taux2=System.nanoTime();
-                    timemergestarts.add(inloopn, taux2);
-                    ut.setDestinationFileName(ExtDir + "/PDF/MergedPDF" + String.valueOf(inloopn) + ".pdf");
-                    ut.mergeDocuments();
-                    long taux3=System.nanoTime();
-                    timeuploadstarts.add(inloopn, taux3);
-                    uploadFile();
-                    inloopn++;
-                }
+                jsonArray = new JSONArray(jsonString);
+                doPDFsprocess();
             }
-
         }catch (Exception e){
             Log.e("TryInrunTasks",e.toString());
         }
@@ -141,6 +125,23 @@ public class CacheUploadActivity extends AppCompatActivity {
         }
     }
 
+    private void doPDFsprocess() throws Exception {
+        ut = new PDFMergerUtility();
+        timecreationstarts.add(inloopn, System.nanoTime());
+        for (int i=0; i< cache_size; i++){
+            jsonObject = jsonArray.getJSONObject((inloopn*cache_size+i)%500);
+            inputReceiver();
+            evaluateData();
+            createPDF();
+            ut.addSource(ExtDir + "/PDF/" + FileName + ".pdf");
+        }
+        timemergestarts.add(inloopn, System.nanoTime());
+        ut.setDestinationFileName(ExtDir + "/PDF/MergedPDF" + String.valueOf(inloopn) + ".pdf");
+        ut.mergeDocuments();
+        timeuploadstarts.add(inloopn, System.nanoTime());
+        uploadFile();
+    }
+
     public void uploadFile(){
         File f1 = new File(ExtDir + "/PDF/MergedPDF" + String.valueOf(inloopn) + ".pdf");
         Uri uri_file = Uri.fromFile(f1);
@@ -148,12 +149,19 @@ public class CacheUploadActivity extends AppCompatActivity {
         StorageReference stg = storageReference.child("Cache").child(f1.getName());
         stg.putFile(uri_file)
                 .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
                     @Override
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                        long taux=System.nanoTime();
-                        timeuploadends.add(num, taux);
-                        num++;
-                        if(num==nloops)uploadTimes();
+                        timeuploadends.add(inloopn, System.nanoTime());
+                        inloopn++;
+                        if(inloopn<nloops){
+                            try{
+                                doPDFsprocess();
+                            } catch (Exception e){
+                                e.printStackTrace();
+                            }
+                        }
+                        else uploadTimes();
                     }
                 });
 
@@ -165,18 +173,20 @@ public class CacheUploadActivity extends AppCompatActivity {
         templatePDF = new TemplatePDF(getApplicationContext());
         FileName = nombre+"_"+currentDate;
         templatePDF.openDocument(FileName);
-        templatePDF.addMetaData("Evaluacion Nutricional"+nombre,"evaluacion","cs");
-        templatePDF.addTitles("Evaluacion Nutricional","Paciente: "+nombre,currentDate);
-        templatePDF.addParagraph(IMC);
-        templatePDF.addParagraph(IPT);
-        templatePDF.addParagraph(PESO_IDEAL);
-        templatePDF.addParagraph(CMB);
-        templatePDF.addParagraph(AMB);
-        templatePDF.addParagraph(AGB);
-        templatePDF.addParagraph(PT);
-        templatePDF.addParagraph(CIN);
-        templatePDF.addParagraph(RELCINCAD);
-        templatePDF.addParagraph(CONTEXTURA);
+        //for(int i=0;i<60;i++) {
+            templatePDF.addMetaData("Evaluacion Nutricional" + nombre, "evaluacion", "cs");
+            templatePDF.addTitles("Evaluacion Nutricional", "Paciente: " + nombre, currentDate);
+            templatePDF.addParagraph(IMC);
+            templatePDF.addParagraph(IPT);
+            templatePDF.addParagraph(PESO_IDEAL);
+            templatePDF.addParagraph(CMB);
+            templatePDF.addParagraph(AMB);
+            templatePDF.addParagraph(AGB);
+            templatePDF.addParagraph(PT);
+            templatePDF.addParagraph(CIN);
+            templatePDF.addParagraph(RELCINCAD);
+            templatePDF.addParagraph(CONTEXTURA);
+        //}
         templatePDF.closeDocument();
     }
 
@@ -234,24 +244,24 @@ public class CacheUploadActivity extends AppCompatActivity {
             writer.write(System.lineSeparator());
             writer.write("\r\n");
             //writer.write(System.lineSeparator());
-            for(int i=0; i<num; i++){
+            for(int i=0; i<nloops; i++){
                 writer.write(String.valueOf(timecreationstarts.elementAt(i)));
                 writer.write(System.lineSeparator());
                 //System.out.println("CRE: " + timecreationstarts.elementAt(i));
             }
             writer.append("\n");
-            for(int i=0; i<num; i++){
+            for(int i=0; i<nloops; i++){
                 writer.write(String.valueOf(timemergestarts.elementAt(i)));
                 writer.write(System.lineSeparator());
                 //System.out.println("MER: " + timecreationstarts.elementAt(i));
             }
             writer.append("\n");
-            for(int i=0; i<num; i++){
+            for(int i=0; i<nloops; i++){
                 writer.write(String.valueOf(timeuploadstarts.elementAt(i)));
                 writer.write(System.lineSeparator());
             }
             writer.append("\n");
-            for(int i=0; i<num; i++){
+            for(int i=0; i<nloops; i++){
                 writer.write(String.valueOf(timeuploadends.elementAt(i)));
                 writer.write(System.lineSeparator());
             }
@@ -269,7 +279,7 @@ public class CacheUploadActivity extends AppCompatActivity {
                     public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
                         System.out.println("Uploaded");
                         reports.setText(String.valueOf(len) + " Reports in " +  String.valueOf((int)(len/cache_size)) + " PDFs files uploaded");
-                        timeTotal.setText("Total time: " + (int)((timeuploadends.elementAt(num-1)-t0)/1e6) + "ms");
+                        timeTotal.setText("Total time: " + (int)((timeuploadends.elementAt(inloopn-1)-t0)/1e6) + "ms");
                     }
                 });
     }
