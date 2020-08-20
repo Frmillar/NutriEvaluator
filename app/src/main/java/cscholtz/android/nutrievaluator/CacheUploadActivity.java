@@ -82,7 +82,6 @@ public class CacheUploadActivity extends AppCompatActivity {
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //num = 0;
                 inloopn = 0;
                 storageReference = FirebaseStorage.getInstance().getReference();
                 try {
